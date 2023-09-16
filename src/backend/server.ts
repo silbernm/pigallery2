@@ -92,7 +92,7 @@ export class Server {
       csuf.unless((req: Request) => {
         return (
           Config.Users.authenticationRequired === false ||
-          [Config.Server.apiPath + '/user/login', Config.Server.apiPath + '/user/logout', Config.Server.apiPath + '/share/login'].indexOf(
+          [Config.Server.apiPath + '/user/login', Config.Server.apiPath + '/user/logout', Config.Server.apiPath + '/share/login', Config.Server.apiPath + '/oidc/cb'].indexOf(
             req.originalUrl
           ) !== -1 ||
           (Config.Sharing.enabled === true &&

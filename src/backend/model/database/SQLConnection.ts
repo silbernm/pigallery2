@@ -94,6 +94,7 @@ export class SQLConnection {
     const admins = await userRepository.findBy({role: UserRoles.Admin});
     const devs = await userRepository.findBy({role: UserRoles.Developer});
     if (admins.length === 0 && devs.length === 0) {
+      // TODO: Disable auto-creation of dummy admin with OIDC 
       const a = new UserEntity();
       a.name = 'admin';
       a.password = PasswordHelper.cryptPassword('admin');

@@ -56,6 +56,14 @@
                   type="submit"
                   name="action" i18n>Login
           </button>
+
+          <button class="btn btn-primary btn-lg"
+                  *ngFor="let oidcConfiguration of oidcConfigurations"
+                  [disabled]="inProgress"
+                  type="button"
+                  (click)="onOidcLogin(oidcConfiguration)"
+                  name="oidc-{{oidcConfiguration}}" i18n>Login with {{oidcConfiguration}}
+          </button>
         </div>
       </form>
 

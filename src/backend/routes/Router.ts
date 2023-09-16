@@ -9,6 +9,7 @@ import {SettingsRouter} from './admin/SettingsRouter';
 import {NotificationRouter} from './NotificationRouter';
 import {ErrorRouter} from './ErrorRouter';
 import {AlbumRouter} from './AlbumRouter';
+import {OidcRouter} from './OidcRouter';
 
 export class Router {
   public static route(app: Express): void {
@@ -22,6 +23,7 @@ export class Router {
     SettingsRouter.route(app);
     SharingRouter.route(app);
     UserRouter.route(app);
+    OidcRouter.route(app)
 
     ErrorRouter.route(app);
   }
