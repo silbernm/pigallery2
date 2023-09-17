@@ -58,11 +58,11 @@
           </button>
 
           <button class="btn btn-primary btn-lg"
-                  *ngFor="let oidcConfiguration of oidcConfigurations"
-                  [disabled]="inProgress"
                   type="button"
-                  (click)="onOidcLogin(oidcConfiguration)"
-                  name="oidc-{{oidcConfiguration}}" i18n>Login with {{oidcConfiguration}}
+                  *ngIf="oidcEnabled"
+                  [disabled]="inProgress"
+                  (click)="onOidcLogin()"
+                  name="oidc" i18n>Login with {{oidcIssuerName}}
           </button>
         </div>
       </form>

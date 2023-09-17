@@ -1,7 +1,9 @@
 import {Injectable} from '@angular/core';
+import {Location} from '@angular/common';
 import {UserDTO, UserRoles} from '../../../../common/entities/UserDTO';
 import {BehaviorSubject} from 'rxjs';
 import {UserService} from './user.service';
+import {OidcService} from './oidc.service';
 import {LoginCredential} from '../../../../common/entities/LoginCredential';
 import {Config} from '../../../../common/config/public/Config';
 import {NetworkService} from './network.service';
@@ -21,7 +23,9 @@ export class AuthenticationService {
   public readonly user: BehaviorSubject<UserDTO>;
 
   constructor(
+      private location: Location,
       private userService: UserService,
+      private oidcService: OidcService,
       private networkService: NetworkService,
       private shareService: ShareService,
       private cookieService: CookieService
@@ -73,6 +77,10 @@ export class AuthenticationService {
     const user = await this.userService.login(credential);
     this.user.next(user);
     return user;
+  }
+
+  public async oidcLogin(): Promise<void> {
+    window.location.href = await this.oidcService.login(this.location.path());
   }
 
   public async shareLogin(password: string): Promise<UserDTO> {

@@ -26,9 +26,7 @@ export class AppComponent implements OnInit, OnDestroy {
     themeService.init();
   }
 
-  async ngOnInit(): Promise<void> {
-    this.title.setTitle(Config.Server.applicationTitle);
-    await this.shareService.wait();
+    async ngOnInit(): Promise<void> { 
     this.subscription = this.authenticationService.user.subscribe(() => {
       if (this.authenticationService.isAuthenticated()) {
         if (this.navigation.isLoginPage()) {
@@ -36,7 +34,11 @@ export class AppComponent implements OnInit, OnDestroy {
         }
       } else {
         if (!this.navigation.isLoginPage()) {
-          return this.navigation.toLogin();
+          if(Config.Users.Oidc.enabled && Config.Users.Oidc.automatic) {
+            return this.authenticationService.oidcLogin();
+          } else {
+            return this.navigation.toLogin();
+          }
         }
       }
     });

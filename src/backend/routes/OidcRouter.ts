@@ -7,18 +7,8 @@ import { RenderingMWs } from '../middlewares/RenderingMWs';
 
 export class OidcRouter {
   public static route(app: Express): void {
-    this.oidcConfigs(app);
     this.oidcLogin(app);
     this.oidcCallback(app);
-  }
-
-  protected static oidcConfigs(app: Express): void {
-    app.get(
-        [Config.Server.apiPath + '/oidc/configs'],
-        OidcMWs.getOidcConfigurations,
-        ServerTimingMWs.addServerTiming,
-        RenderingMWs.renderResult
-    );
   }
 
   protected static oidcLogin(app: Express): void {

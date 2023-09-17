@@ -14,6 +14,7 @@ import {
   ClientGPXCompressingConfig,
   ClientMediaConfig,
   ClientMetaFileConfig,
+  ClientOidcConfig,
   ClientPhotoConfig,
   ClientPhotoConvertingConfig,
   ClientServiceConfig,
@@ -295,8 +296,178 @@ export class ServerUserConfig extends ClientUserConfig {
     description: $localize`Creates these users in the DB during startup if they do not exist. If a user with this name exist, it won't be overwritten, even if the role is different.`,
   })
   enforcedUsers: UserConfig[] = [];
+
+  Oidc: ServerOidcConfig = new ServerOidcConfig();
 }
 
+@SubConfigClass({softReadonly: true})
+export class ServerOidcRoleMapping {
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Developer Role Mapping`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+    },
+    description: $localize`User gets developer role (or higher) if this regex matches a full role claim. Leave empty to never match developer role.`,
+  })
+  developerRoleRegex: string = "pigallery2-developer";
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Developer Role Mapping`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+    },
+    description: $localize`User gets developer role (or higher) if this regex matches a full role claim. Leave empty to never match developer role.`,
+  })
+  adminRoleRegex: string = "pigallery2-admin";
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Developer Role Mapping`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+    },
+    description: $localize`User gets developer role (or higher) if this regex matches a full role claim. Leave empty to never match developer role.`,
+  })
+  userRoleRegex: string = "pigallery2-user";
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Developer Role Mapping`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+    },
+    description: $localize`User gets developer role (or higher) if this regex matches a full role claim. Leave empty to never match developer role.`,
+  })
+  guestRoleRegex: string = "pigallery2-guest";
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Developer Role Mapping`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+    },
+    description: $localize`User gets developer role (or higher) if this regex matches a full role claim. Leave empty to never match developer role.`,
+  })
+  limitedGuestRoleRegex: string = "pigallery2-limited-guest";
+}
+
+@SubConfigClass({softReadonly: true})
+export class ServerOidcConfig extends ClientOidcConfig {
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`URL of OIDC issuer`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.enabled
+    },
+    description: $localize`URL at which OIDC issuer metadata can be discovered, e.g. "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration"`,
+  })
+  issuerUrl: string;
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`OIDC Client ID`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.enabled
+    },
+    description: $localize`Client ID as configured in OIDC issuer`,
+  })
+  clientId: string = null;
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`OIDC Client Secret`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      secret: true,
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.enabled
+    },
+    description: $localize`Client secret as configured in OIDC issuer, if client is confidential. Leave empty for public client.`,
+  })
+  clientSecret: string = null;
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Client Scopes`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.enabled
+    },
+    description: $localize`Client scopes to use for OIDC implicit flow`,
+  })
+  clientScopes: string = "openid profile email";
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Username Claim`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.enabled
+    },
+    description: $localize`Claim from OIDC id_token which contains the user name. Login will fail if claim is missing or empty.`,
+  })
+  userNameClaim: string = "email";
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Allow new Users`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.enabled
+    },
+    description: $localize`Allow OIDC login for new users, i.e. users not known to pigallery2`,
+  })
+  allowNewUsers: boolean = false;
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Default Role for new Users`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.allowNewUsers
+    },
+    description: $localize`Default role for new users (if role mapping fails). Login fails if mapping fails and default is unset.`,
+  })
+  defaultRole: UserRoles = null;
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Use OIDC Roles`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.allowNewUsers
+    },
+    description: $localize``,
+  })
+  useOidcRole: boolean = false;
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Role Claim`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.useOidcRole
+    },
+    description: $localize`Claim from OIDC id_token to extract roles from. Requires role mapping configuration. If `,
+  })
+  roleClaim: string = "roles";
+
+  @ConfigProperty({
+    tags: {
+      name: $localize`Role Mapping`,
+      priority: ConfigPriority.advanced,
+      uiResetNeeded: {server: true},
+      uiDisabled: (subConfig: ServerOidcConfig, config: ClientConfig) => !subConfig.useOidcRole
+    },
+    description: $localize`Mapping from role claim to pigallery2 roles. The highest mapped role `,
+  })
+  roleMapping: ServerOidcRoleMapping = new ServerOidcRoleMapping();
+}
 
 @SubConfigClass({softReadonly: true})
 export class ServerThumbnailConfig extends ClientThumbnailConfig {

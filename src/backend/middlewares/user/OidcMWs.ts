@@ -4,6 +4,8 @@ import { Config } from '../../../common/config/private/Config';
 import { Issuer, BaseClient, generators } from 'openid-client';
 import { Logger } from '../../Logger';
 import { UserDTO, UserRoles } from '../../../common/entities/UserDTO';
+import { Utils } from '../../../common/Utils';
+import { ObjectManagers } from '../../model/ObjectManagers';
 
 const LOG_TAG = '[Oidc]';
 const OIDC_NONCE_SESSION_VARIABLE = 'oidc_nonce';
@@ -17,11 +19,6 @@ export class OidcMWs {
     private static lastSuccessfulInit?: Date;
     private static lastStartedInit?: Date;
     private static client?: BaseClient = null;
-
-    public static async getOidcConfigurations(req: Request, res: Response, next: NextFunction): Promise<void> {
-        req.resultPipe = ["Keycloak"]
-        next()
-    }
 
     public static async startOidcLoginProcess(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
@@ -55,7 +52,7 @@ export class OidcMWs {
             const params = client.callbackParams(req);
             const nonce = req.session[OIDC_NONCE_SESSION_VARIABLE];
             const tokenSet = await client.callback(OidcMWs.redirectUri, params, { nonce });
-            req.session['user'] = OidcMWs.getUserFromClaims(tokenSet.claims())
+            req.session['user'] = await OidcMWs.getUserFromClaims(tokenSet.claims())
 
             res.redirect(OidcMWs.getRedirectTo(req))
             next()
@@ -70,54 +67,88 @@ export class OidcMWs {
         }
     }
 
-    private static getUserFromClaims(claims: any): UserDTO {
+    private static async getUserFromClaims(claims: any): Promise<UserDTO> {
         Logger.debug(LOG_TAG, `Received and verified OIDC claims ${JSON.stringify(claims)}`);
-        const username = claims["preferred_username"]; // TODO: Make claim configurable
+        const username = claims[Config.Users.Oidc.userNameClaim];
         if (typeof username != "string" || username.length == 0) {
             throw new Error("Received no username from identity provider");
         }
-        const role = OidcMWs.getRoleFromClaims(claims);
-        if (role == null) {
-            throw new Error("Received no role from identity provider");
+
+        const user = Utils.clone(
+            await ObjectManagers.getInstance().UserManager.findOne({name: username}));
+        if(user) {
+            Logger.info(LOG_TAG, `OIDC login complete for existing user ${username}`);
+            return user;
+        }
+        if(!Config.Users.Oidc.allowNewUsers) {
+            throw new Error(`OIDC login failed for unknown user ${username}`)
+        }
+
+        var role = Config.Users.Oidc.defaultRole;
+        if(Config.Users.Oidc.useOidcRole) {
+            var mappedRole = OidcMWs.getRoleFromClaims(claims);
+            role = mappedRole || role;
         }
         Logger.info(LOG_TAG, `OIDC login complete for user ${username}, role ${role}`);
         return {
             name: username,
             role: role,
+            permissions: []
         } as UserDTO;
     }
 
     private static getRoleFromClaims(claims: any): UserRoles {
-        const roles = claims['roles']; // TODO: Make claim configurable
-        // TODO: Make transformation configurable
-        for (const role of roles) {
-            if (role == "pigallery2-admin") {
-                return UserRoles.Admin;
-            }
+        const roles = OidcMWs.parseRoleClaim(claims)
+        if (OidcMWs.isRoleMatching(roles, Config.Users.Oidc.roleMapping.developerRoleRegex)) {
+            return UserRoles.Developer;
         }
-        for (const role of roles) {
-            if (role == "user") {
-                return UserRoles.User;
-            }
+        if (OidcMWs.isRoleMatching(roles, Config.Users.Oidc.roleMapping.adminRoleRegex)) {
+            return UserRoles.Admin;
         }
-        for (const role of roles) {
-            if (role == "guest") {
-                return UserRoles.Guest;
-            }
+        if (OidcMWs.isRoleMatching(roles, Config.Users.Oidc.roleMapping.userRoleRegex)) {
+            return UserRoles.User;
+        }
+        if (OidcMWs.isRoleMatching(roles, Config.Users.Oidc.roleMapping.guestRoleRegex)) {
+            return UserRoles.Guest;
+        }
+        if (OidcMWs.isRoleMatching(roles, Config.Users.Oidc.roleMapping.limitedGuestRoleRegex)) {
+            return UserRoles.LimitedGuest;
         }
         return null;
     }
 
+    private static parseRoleClaim(claims: any): string[] {
+        const roleClaim = claims[Config.Users.Oidc.roleClaim];
+        if (!roleClaim) {
+            return [];
+        }
+        if (typeof roleClaim == 'string') {
+            return [roleClaim]
+        } else {
+            return roleClaim;
+        }
+    }
+
+    private static isRoleMatching(roles: string[], roleRegex: string) {
+        const regexp = new RegExp(`^${roleRegex}$`)
+        for (const role of roles) {
+            if (regexp.test(role)) {
+                return true;
+            }
+        }
+    }
+
     private static storeRedirectTo(req: Request, userRedirectToParam: any) {
-        if (typeof userRedirectToParam == 'string' && userRedirectToParam.startsWith(Config.Server.publicUrl)) {
+        const isRelativePath = typeof userRedirectToParam == 'string' && userRedirectToParam.startsWith("/");
+        if (isRelativePath) {
             req.session[OIDC_REDIRECT_TO_SESSION_VARIABLE] = userRedirectToParam;
         } else {
-            req.session[OIDC_REDIRECT_TO_SESSION_VARIABLE] = Config.Server.publicUrl;
+            req.session[OIDC_REDIRECT_TO_SESSION_VARIABLE] = "";
         }
     }
 
     private static getRedirectTo(req: Request): string {
-        return req.session[OIDC_REDIRECT_TO_SESSION_VARIABLE] || Config.Server.publicUrl
+        return Config.Server.publicUrl + (req.session[OIDC_REDIRECT_TO_SESSION_VARIABLE] || "")
     }
 
     private static async getClient(): Promise<BaseClient> {
@@ -147,12 +178,12 @@ export class OidcMWs {
     private static async tryCreateClient(): Promise<BaseClient> {
         try {
             Logger.verbose(LOG_TAG, 'Discovering OIDC issuer...');
-            const issuer = await Issuer.discover('https://privat.kleintierpraxis-muensingen.de/auth/realms/home/.well-known/openid-configuration'); // TODO: Configurable
+            const issuer = await Issuer.discover(Config.Users.Oidc.issuerUrl)
             Logger.verbose(LOG_TAG, 'Successfully discovered OIDC issuer');
 
             return new issuer.Client({
-                client_id: 'pigallery2', // TODO: Configurable
-                client_secret: 'h1N4z7UNd8xEXqt92PKg9J74JCt8GSt8', // TODO: Configurable
+                client_id: Config.Users.Oidc.clientId,
+                client_secret: Config.Users.Oidc.clientSecret || null,
                 redirect_uris: [OidcMWs.redirectUri],
                 response_types: ['id_token'],
                 // id_token_signed_response_alg (default "RS256")

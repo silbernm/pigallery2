@@ -8,15 +8,9 @@ export class OidcService {
   ) {
   }
 
-  public async getOidcConfigurations(): Promise<string[]> {
-    return this.networkService.getJson<string[]>('/oidc/configs');
-  }
-
-  public async login(oidcConfiguration: string, redirectTo: Location): Promise<void> {
+  public async login(redirectTo: string): Promise<string> {
     const query: any = {};
-    query['configuration'] = oidcConfiguration;
     query['redirectTo'] = redirectTo;
-    const authenticationUrl = await this.networkService.getJson<Location>('/oidc/login', query);
-    window.location = authenticationUrl;
+    return this.networkService.getJson<string>('/oidc/login', query);
   }
 }
